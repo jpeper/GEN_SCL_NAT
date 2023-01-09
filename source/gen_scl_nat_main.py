@@ -36,7 +36,7 @@ from losses import SupConLoss
 from transformers import AdamW, T5ForConditionalGeneration, T5Tokenizer
 from transformers import get_linear_schedule_with_warmup
 
-from data_utils import ATTNDataset
+from data_utils import GenSCLNatDataset
 from data_utils import read_line_examples_from_file
 from eval_utils import compute_scores
 
@@ -127,7 +127,7 @@ def init_args():
     return args
 
 def get_dataset(tokenizer, type_path, args):
-    return ATTNDataset(tokenizer=tokenizer, data_dir=args.dataset, 
+    return GenSCLNatDataset(tokenizer=tokenizer, data_dir=args.dataset, 
                        data_type=type_path, max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
 
 """
@@ -391,6 +391,7 @@ def evaluate(data_loader, model, sents, task):
     Compute scores given the predictions and gold labels and dump to file
     """
     device = torch.device(DEVICE)
+    model.model.to(device)
 
     model.eval()
     model.model.eval()
@@ -433,9 +434,9 @@ tokenizer.add_tokens(['[SSEP]'])
 
 
 
-test_d = dataset = ATTNDataset(tokenizer=tokenizer, data_dir=args.dataset, 
-                      data_type='test', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
-dataset = ATTNDataset(tokenizer=tokenizer, data_dir=args.dataset, 
+
+# Get example from the train set
+dataset = GenSCLNatDataset(tokenizer=tokenizer, data_dir=args.dataset, 
                       data_type='train', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
 data_sample = dataset[0]
 
@@ -503,7 +504,7 @@ if args.do_direct_eval:
     sents, _ = read_line_examples_from_file(f'data/{args.dataset}/test.txt')
 
     print()
-    test_dataset = ATTNDataset(tokenizer, data_dir=args.dataset, 
+    test_dataset = GenSCLNatDataset(tokenizer, data_dir=args.dataset, 
                                data_type='test', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
     test_loader = DataLoader(test_dataset, args.eval_batch_size, num_workers=4)
 
@@ -514,12 +515,12 @@ if args.do_inference:
     print("\n****** Conduct inference on trained checkpoint ******")
 
     # initialize the T5 model from previous checkpoint
-    model_path = os.path.join(args.output_folder, args.model_prefix)
-    print(f"Load trained model from {model_path}")
+    model_path = args.model_name_or_path
+    print(f"Loading trained model from {model_path}")
     tokenizer = T5Tokenizer.from_pretrained(model_path)
     tfm_model = T5ForConditionalGeneration.from_pretrained(model_path)
 
-    # representations are only used during training for the auxiliary SupConLoss, so we don't save them after training
+    # representations are only used during loss calculation
     cont_model = LinearModel()
     op_model = LinearModel()
     as_model = LinearModel()
@@ -529,7 +530,7 @@ if args.do_inference:
     sents, _ = read_line_examples_from_file(f'data/{args.dataset}/test.txt')
 
     print()
-    test_dataset = ATTNDataset(tokenizer, data_dir=args.dataset, 
+    test_dataset = GenSCLNatDataset(tokenizer, data_dir=args.dataset, 
                                data_type='test', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
     test_loader = DataLoader(test_dataset, batch_size=args.eval_batch_size, num_workers=4)
 
