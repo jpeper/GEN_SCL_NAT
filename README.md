@@ -1,58 +1,41 @@
-[IN PROGRESS] Code + Models for EMNLP 2022 Findings paper "Generative Aspect-Based Sentiment Analysis with Contrastive Learning and Expressive Structure"
+Code + Models for EMNLP 2022 Findings paper "Generative Aspect-Based Sentiment Analysis with Contrastive Learning and Expressive Structure"
 Paper Link: https://arxiv.org/abs/2211.07743
 
-Model Checkpoints (Highest-performing model amongst the 5 random seeds)
+Pre-trained Model Usage:
 
+The following trained models are available for download on Google Drive (highest-performing model amongst the 5 random seeds):
 ```
 GEN_SCL_NAT-RESTAURANT
 GEN_SCL_NAT-LAPTOP
 GEN_SCL_NAT-LAPTOP-L1
 ```
 
+Drive link: https://drive.google.com/drive/folders/1g30oS8hpqn6tAGNyLbOwEoLLmhHOy94o?usp=share_link
+
+
 Module Requirements:
 
+You can recreate the full Conda environment used by running the following (may require some tweaking of the environment name/path to run on your machine):
 ```
-Python 3.9+
-Pytorch 1.10
-Ptorch Lightning 1.8
-```
-
-See `requirements.txt` for reproducing full environment
-You can initialize an environment by doing something like 
-```
-conda create environment.yml
+conda env create -f environment.yml
 conda activate gen_scl_nat_env
 ```
 
-Module Usage.
+Otherwise, key dependencies used are listed here:
+
+```
+Python >- 3.9+
+torch >= 1.10
+pytorch-lightning >= 1.8.6
+sentencepiece >= 0.1.97
+transformers >= 4.19.0
+```
+
+Module Usage:
 1. Initialize + activate conda environment
-2. Download data + models to `data/` and `/trained_models` folders
-    TODO: Add wget-able links instead of GDrive
-3. Run `main_gen_scl_nat.py` with specified json configuration file (see `configs/`).   
-e.g. `python main_gen_scl_nat.py --config <config_file>`
-
-Config file examples:
-
-Train + Evaluate model:
-```
-{
-    `dataset_path` # path to folder containing dataset (split into train/validation/test).  
-    `model_path` # path to t5 (training) or fine-tuned model (evaluation) 
-    `train`: { 
-        `num_epochs: 30` 
-        `output_path: <output_path>` 
-        . 
-        . 
-        `<training parameters>` 
-    } 
-    `evaluate`: { 
-        `num_beams`: 5 
-        `print_metrics`: True 
-        `evaluation_log_path`:  # optional 
-    } 
-}
-```
- 
+2. Download and untar trained models to `models/`
+3. Run `main_gen_scl_nat.py` for model training/inference. 
+	`configs/` contains example scripts for running evaluation on each model from the paper
 
 Please cite our paper as such:
 ```
