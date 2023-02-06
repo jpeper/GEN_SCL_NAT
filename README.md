@@ -24,7 +24,7 @@ conda activate gen_scl_nat_env
 Otherwise, key dependencies used are listed here:
 
 ```
-Python >- 3.9+
+Python >= 3.9+
 torch >= 1.10
 pytorch-lightning >= 1.8.6
 sentencepiece >= 0.1.97
