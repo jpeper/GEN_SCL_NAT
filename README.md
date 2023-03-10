@@ -1,6 +1,9 @@
 Code + Models for EMNLP 2022 Findings paper "Generative Aspect-Based Sentiment Analysis with Contrastive Learning and Expressive Structure"
 Paper Link: https://arxiv.org/abs/2211.07743
 
+![image](https://user-images.githubusercontent.com/22947125/224211557-5f9b37ac-10ce-4e1b-8c53-a574233d94d1.png)
+
+
 Pre-trained Model Usage:
 
 The following trained models are available for download on Google Drive (highest-performing model amongst the 5 random seeds):
