@@ -425,115 +425,118 @@ def evaluate(data_loader, model, sents, task):
     json.dump(results, open(f"{args.output_dir}/results-{args.dataset}.json", 'w'), indent=2, sort_keys=True)
     return scores
 
-# initialization
-args = init_args()
-seed_everything(args.seed, workers=True)
+    
+# check for top-level environment
+if __name__ == '__main__':
+    # initialization
+    args = init_args()
+    seed_everything(args.seed, workers=True)
 
-tokenizer = T5Tokenizer.from_pretrained(args.model_name_or_path)
-tokenizer.add_tokens(['[SSEP]'])
+    tokenizer = T5Tokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer.add_tokens(['[SSEP]'])
 
 
 
 
-# Get example from the train set
-dataset = GenSCLNatDataset(tokenizer=tokenizer, data_dir=args.dataset, 
-                      data_type='train', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
-data_sample = dataset[0]
+    # Get example from the train set
+    dataset = GenSCLNatDataset(tokenizer=tokenizer, data_dir=args.dataset, 
+                        data_type='train', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
+    data_sample = dataset[0]
 
-# sanity check
-# show one sample to check the code and the expected output format are correct
-print(f"Here is an example (from the train set):")
-print('Input :', tokenizer.decode(data_sample['source_ids'], skip_special_tokens=True))
-print(data_sample['source_ids'])
-print('Output:', tokenizer.decode(data_sample['target_ids'], skip_special_tokens=True))
-print(data_sample['target_ids'])
+    # sanity check
+    # show one sample to check the code and the expected output format are correct
+    print(f"Here is an example (from the train set):")
+    print('Input :', tokenizer.decode(data_sample['source_ids'], skip_special_tokens=True))
+    print(data_sample['source_ids'])
+    print('Output:', tokenizer.decode(data_sample['target_ids'], skip_special_tokens=True))
+    print(data_sample['target_ids'])
 
-# training process
-if args.do_train:
-    print("\n****** Conducting Training ******")
+    # training process
+    if args.do_train:
+        print("\n****** Conducting Training ******")
 
-    # initialize the T5 model
-    tfm_model = T5ForConditionalGeneration.from_pretrained(args.model_name_or_path)
-    tfm_model.resize_token_embeddings(len(tokenizer))
-    # initialize characteristic-specific representation models
-    cont_model = LinearModel()
-    op_model = LinearModel()
-    as_model = LinearModel()
-    cat_model = LinearModel()
-    model = T5FineTuner(args, tfm_model, tokenizer, cont_model, op_model, as_model, cat_model)
+        # initialize the T5 model
+        tfm_model = T5ForConditionalGeneration.from_pretrained(args.model_name_or_path)
+        tfm_model.resize_token_embeddings(len(tokenizer))
+        # initialize characteristic-specific representation models
+        cont_model = LinearModel()
+        op_model = LinearModel()
+        as_model = LinearModel()
+        cat_model = LinearModel()
+        model = T5FineTuner(args, tfm_model, tokenizer, cont_model, op_model, as_model, cat_model)
 
-    if args.early_stopping:
-        checkpoint_callback = pl.callbacks.model_checkpoint.ModelCheckpoint(
-         dirpath=args.output_dir, monitor='val_loss', mode='min', save_top_k=1
+        if args.early_stopping:
+            checkpoint_callback = pl.callbacks.model_checkpoint.ModelCheckpoint(
+            dirpath=args.output_dir, monitor='val_loss', mode='min', save_top_k=1
+            )
+            callback_list = [checkpoint_callback, LoggingCallback(), EarlyStopping(monitor="val_loss", mode='min', patience=3)]
+        else:
+            callback_list = [LoggingCallback()]
+
+        # prepare trainer args
+        train_params = dict(
+            default_root_dir=args.output_dir,
+            accumulate_grad_batches=args.gradient_accumulation_steps,
+            gpus=args.n_gpu,
+            gradient_clip_val=1.0,
+            max_epochs=args.num_train_epochs,
+            auto_lr_find=False,
+            deterministic=True,
+            #auto_scale_batch_size=True,
+            #callbacks=[checkpoint_callback, EarlyStopping(monitor="val_loss", mode='min'), LoggingCallback()],
+            callbacks=callback_list
         )
-        callback_list = [checkpoint_callback, LoggingCallback(), EarlyStopping(monitor="val_loss", mode='min', patience=3)]
-    else:
-        callback_list = [LoggingCallback()]
+        trainer = pl.Trainer(**train_params)
+        trainer.fit(model)
 
-    # prepare trainer args
-    train_params = dict(
-        default_root_dir=args.output_dir,
-        accumulate_grad_batches=args.gradient_accumulation_steps,
-        gpus=args.n_gpu,
-        gradient_clip_val=1.0,
-        max_epochs=args.num_train_epochs,
-        auto_lr_find=False,
-        deterministic=True,
-        #auto_scale_batch_size=True,
-        #callbacks=[checkpoint_callback, EarlyStopping(monitor="val_loss", mode='min'), LoggingCallback()],
-        callbacks=callback_list
-    )
-    trainer = pl.Trainer(**train_params)
-    trainer.fit(model)
+        if args.early_stopping:
+            ex_weights = torch.load(checkpoint_callback.best_model_path)['state_dict']
+            model.load_state_dict(ex_weights)
+            
+        model.model.save_pretrained(args.output_dir)
+        tokenizer.save_pretrained(args.output_dir)
+        with open(os.path.join(args.output_dir, 'args.json'), 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
 
-    if args.early_stopping:
-        ex_weights = torch.load(checkpoint_callback.best_model_path)['state_dict']
-        model.load_state_dict(ex_weights)
-        
-    model.model.save_pretrained(args.output_dir)
-    tokenizer.save_pretrained(args.output_dir)
-    with open(os.path.join(args.output_dir, 'args.json'), 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+        print("Finish training and saving the model!")
 
-    print("Finish training and saving the model!")
+    # evaluation
+    if args.do_direct_eval:
+        print("\n****** Conduct Evaluating with the last state ******")
 
-# evaluation
-if args.do_direct_eval:
-    print("\n****** Conduct Evaluating with the last state ******")
+        sents, _ = read_line_examples_from_file(f'data/{args.dataset}/test.txt')
 
-    sents, _ = read_line_examples_from_file(f'data/{args.dataset}/test.txt')
+        print()
+        test_dataset = GenSCLNatDataset(tokenizer, data_dir=args.dataset, 
+                                data_type='test', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
+        test_loader = DataLoader(test_dataset, args.eval_batch_size, num_workers=4)
 
-    print()
-    test_dataset = GenSCLNatDataset(tokenizer, data_dir=args.dataset, 
-                               data_type='test', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
-    test_loader = DataLoader(test_dataset, args.eval_batch_size, num_workers=4)
+        # compute the performance scores
+        evaluate(test_loader, model, test_dataset.sentence_strings, args.task)
 
-    # compute the performance scores
-    evaluate(test_loader, model, test_dataset.sentence_strings, args.task)
+    if args.do_inference:
+        print("\n****** Conduct inference on trained checkpoint ******")
 
-if args.do_inference:
-    print("\n****** Conduct inference on trained checkpoint ******")
+        # initialize the T5 model from previous checkpoint
+        model_path = args.model_name_or_path
+        print(f"Loading trained model from {model_path}")
+        tokenizer = T5Tokenizer.from_pretrained(model_path)
+        tfm_model = T5ForConditionalGeneration.from_pretrained(model_path)
 
-    # initialize the T5 model from previous checkpoint
-    model_path = args.model_name_or_path
-    print(f"Loading trained model from {model_path}")
-    tokenizer = T5Tokenizer.from_pretrained(model_path)
-    tfm_model = T5ForConditionalGeneration.from_pretrained(model_path)
+        # representations are only used during loss calculation
+        cont_model = LinearModel()
+        op_model = LinearModel()
+        as_model = LinearModel()
+        cat_model = LinearModel()
+        model = T5FineTuner(args, tfm_model, tokenizer, cont_model, op_model, as_model, cat_model)
 
-    # representations are only used during loss calculation
-    cont_model = LinearModel()
-    op_model = LinearModel()
-    as_model = LinearModel()
-    cat_model = LinearModel()
-    model = T5FineTuner(args, tfm_model, tokenizer, cont_model, op_model, as_model, cat_model)
+        sents, _ = read_line_examples_from_file(f'data/{args.dataset}/test.txt')
 
-    sents, _ = read_line_examples_from_file(f'data/{args.dataset}/test.txt')
+        print()
+        test_dataset = GenSCLNatDataset(tokenizer, data_dir=args.dataset, 
+                                data_type='test', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
+        test_loader = DataLoader(test_dataset, batch_size=args.eval_batch_size, num_workers=4)
 
-    print()
-    test_dataset = GenSCLNatDataset(tokenizer, data_dir=args.dataset, 
-                               data_type='test', max_len=args.max_seq_length, task=args.task, truncate=args.truncate)
-    test_loader = DataLoader(test_dataset, batch_size=args.eval_batch_size, num_workers=4)
-
-    # compute the performance scores
-    evaluate(test_loader, model, test_dataset.sentence_strings, args.task)
+        # compute the performance scores
+        evaluate(test_loader, model, test_dataset.sentence_strings, args.task)
     
