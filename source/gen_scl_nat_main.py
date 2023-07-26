@@ -148,7 +148,7 @@ class LinearModel(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        self.layer_1 = nn.Linear(1024, 1024)
+        self.layer_1 = nn.Linear(512, 1024)
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, x, attention_mask):
