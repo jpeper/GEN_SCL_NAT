@@ -146,9 +146,14 @@ class LinearModel(nn.Module):
     """
     Linear models used for the aspect/opinion/sentiment-specific representations
     """
-    def __init__(self):
+    def __init__(self, model_path):
         super().__init__()
-        self.layer_1 = nn.Linear(512, 1024)
+        if model_path == 't5-small':
+            self.layer_1 = nn.Linear(512, 1024)
+        elif model_path == 't5-base':
+            self.layer_1 = nn.Linear(768, 1024)
+        else:
+            self.layer_1 = nn.Linear(1024, 1024)
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, x, attention_mask):
@@ -459,10 +464,10 @@ if __name__ == '__main__':
         tfm_model = T5ForConditionalGeneration.from_pretrained(args.model_name_or_path)
         tfm_model.resize_token_embeddings(len(tokenizer))
         # initialize characteristic-specific representation models
-        cont_model = LinearModel()
-        op_model = LinearModel()
-        as_model = LinearModel()
-        cat_model = LinearModel()
+        cont_model = LinearModel(args.model_name_or_path)
+        op_model = LinearModel(args.model_name_or_path)
+        as_model = LinearModel(args.model_name_or_path)
+        cat_model = LinearModel(args.model_name_or_path)
         model = T5FineTuner(args, tfm_model, tokenizer, cont_model, op_model, as_model, cat_model)
 
         if args.early_stopping:
@@ -524,10 +529,10 @@ if __name__ == '__main__':
         tfm_model = T5ForConditionalGeneration.from_pretrained(model_path)
 
         # representations are only used during loss calculation
-        cont_model = LinearModel()
-        op_model = LinearModel()
-        as_model = LinearModel()
-        cat_model = LinearModel()
+        cont_model = LinearModel(args.model_name_or_path)
+        op_model = LinearModel(args.model_name_or_path)
+        as_model = LinearModel(args.model_name_or_path)
+        cat_model = LinearModel(args.model_name_or_path)
         model = T5FineTuner(args, tfm_model, tokenizer, cont_model, op_model, as_model, cat_model)
 
         sents, _ = read_line_examples_from_file(f'data/{args.dataset}/test.txt')
