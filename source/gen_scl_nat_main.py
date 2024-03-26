@@ -51,7 +51,7 @@ def init_args():
                         help="The name of the task, selected from: [asqp, tasd, aste]")
     parser.add_argument("--dataset", default='rest15', type=str, required=True,
                         help="The name of the dataset, selected from: [rest15, rest16]")
-    parser.add_argument("--model_name_or_path", default='t5-small', type=str,
+    parser.add_argument("--model_name_or_path", default='t5-base', type=str,
                         help="Path to pre-trained model or shortcut name")
     parser.add_argument("--do_train", action='store_true',
                         help="Whether to run training.")
